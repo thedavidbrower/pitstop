@@ -42,6 +42,10 @@ h1{font:700 30px/1 "Barlow Condensed",sans-serif;margin:0;letter-spacing:.01em}
 .vehicle{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding:16px 24px 4px}
 .odo{font:700 34px/1 "Barlow Condensed",sans-serif;letter-spacing:.06em;background:var(--ink);color:var(--bg);padding:6px 12px;border-radius:4px;font-variant-numeric:tabular-nums}
 .vehicle .meta{color:var(--muted)}
+.odo{border:0;cursor:pointer}
+.odo:hover{filter:brightness(1.15)}
+.prev{color:var(--muted);font-size:14px}
+.hist{margin:0;padding:0;list-style:none;font-size:13px;color:var(--muted);display:grid;gap:2px}
 .board{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:16px;padding:16px 24px 32px;overflow-x:auto}
 .col{background:color-mix(in srgb,var(--surface) 70%,transparent);border:1px solid var(--line);border-top:4px solid var(--c);border-radius:6px;display:flex;flex-direction:column;min-height:260px}
 .col h2{font:700 20px/1 "Barlow Condensed",sans-serif;margin:0;padding:12px 14px 8px;display:flex;justify-content:space-between}
@@ -121,6 +125,20 @@ input,select,textarea{background:var(--bg);border:1px solid var(--line);border-r
 <dialog id="lbDlg">
   <img id="lbImg" alt="Receipt photo, full size">
   <div class="lb-actions"><button class="btn" id="lbClose" type="button">Close photo</button></div>
+</dialog>
+
+<dialog id="odoDlg">
+  <form method="dialog" onsubmit="return false">
+    <h2>Update mileage</h2>
+    <p id="odoPrev" class="prev" style="margin:0"></p>
+    <label>New mileage<input id="oNew" type="number" min="0" inputmode="numeric"></label>
+    <ul class="hist" id="odoHist" aria-label="Earlier readings"></ul>
+    <div class="actions">
+      <span class="spacer"></span>
+      <button class="btn" id="oCancel" type="button">Cancel</button>
+      <button class="btn primary" id="oSave" type="button">Save mileage</button>
+    </div>
+  </form>
 </dialog>
 
 <dialog id="carDlg">
@@ -212,14 +230,23 @@ const $=id=>document.getElementById(id);
 const car=()=>state.vehicles.find(v=>v.id===state.active);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt=n=>Number(n).toLocaleString("en-US");
+const fdate=d=>d?new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+const prevOf=v=>v.log&&v.log.length?v.log[v.log.length-1]:null;
+const prevText=p=>fmt(p.miles)+" mi"+(p.date?" · "+fdate(p.date):"");
+function setMiles(v,n){
+  if(n===v.miles)return;
+  (v.log=v.log||[]).push({miles:v.miles,date:v.milesDate||null});
+  if(v.log.length>50)v.log.shift();
+  v.milesDate=new Date().toISOString(); v.miles=n;
+}
 
 function render(){
   $("tabs").innerHTML=state.vehicles.map(v=>`<button class="tab" role="tab" aria-selected="${v.id===state.active}" data-id="${v.id}">${esc(vname(v))}</button>`).join("");
   const v=car(), main=$("main");
   if(!v){main.innerHTML='<div class="empty">No vehicles yet. Add one to start tracking maintenance.</div>';return}
   const today=new Date().toISOString().slice(0,10);
-  main.innerHTML=`<div class="vehicle"><div class="odo" title="Current mileage">${String(v.miles).padStart(6,"0")}</div>
-    <span class="meta">miles on ${esc(vname(v))}${v.name&&ymm(v)?" · "+esc(ymm(v)):""}</span><button class="btn" id="editCar">Edit vehicle</button></div>
+  main.innerHTML=`<div class="vehicle"><button class="odo" id="odo" title="Click to update mileage" aria-label="Current mileage ${fmt(v.miles)}. Click to update.">${String(v.miles).padStart(6,"0")}</button>
+    <span class="meta">miles on ${esc(vname(v))}${v.name&&ymm(v)?" · "+esc(ymm(v)):""}</span>${prevOf(v)?`<span class="prev">Previous: ${esc(prevText(prevOf(v)))}</span>`:""}<button class="btn" id="editCar">Edit vehicle</button></div>
     <div class="board">${COLUMNS.map(c=>{
       const tasks=v.tasks.filter(t=>t.status===c.id);
       return `<section class="col" style="--c:${c.color}" data-col="${c.id}">
@@ -348,7 +375,7 @@ $("cSave").onclick=()=>{
   const model=$("cModel").value==="__other"?$("cModelOther").value.trim():$("cModel").value;
   if(!name&&!make){$("cMake").focus();return}
   const miles=+$("cMiles").value||0;
-  if(editingCar){Object.assign(state.vehicles.find(x=>x.id===editingCar),{name,year,make,model,miles})}
+  if(editingCar){const ev=state.vehicles.find(x=>x.id===editingCar);Object.assign(ev,{name,year,make,model});setMiles(ev,miles)}
   else{const v={id:uid(),name,year,make,model,miles,tasks:[]};state.vehicles.push(v);state.active=v.id}
   save();$("carDlg").close();render();
 };
@@ -358,10 +385,26 @@ $("cDelete").onclick=()=>{
   state.active=state.vehicles[0]?.id||null;save();$("carDlg").close();render();
 };
 $("cCancel").onclick=()=>$("carDlg").close();
+function openOdo(){
+  const v=car(); if(!v)return;
+  $("odoPrev").textContent="Last logged: "+fmt(v.miles)+" mi"+(v.milesDate?" · "+fdate(v.milesDate):"");
+  $("oNew").value=v.miles;
+  const hist=(v.log||[]).slice(-5).reverse();
+  $("odoHist").innerHTML=hist.length?"<li><strong>Earlier readings</strong></li>"+hist.map(x=>"<li>"+esc(prevText(x))+"</li>").join(""):"<li>No earlier readings yet.</li>";
+  $("odoDlg").showModal(); $("oNew").select();
+}
+$("oSave").onclick=()=>{
+  const v=car(), raw=$("oNew").value, n=Number(raw);
+  if(raw===""||!(n>=0)){$("oNew").focus();return}
+  setMiles(v,Math.round(n)); save(); $("odoDlg").close(); render();
+};
+$("oCancel").onclick=()=>$("odoDlg").close();
+$("oNew").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("oSave").click()}});
 $("addVehicle").onclick=()=>openCar();
 
 document.addEventListener("click",e=>{
   const tab=e.target.closest(".tab"); if(tab){state.active=tab.dataset.id;save();render();return}
+  if(e.target.closest("#odo")){openOdo();return}
   if(e.target.id==="editCar"){openCar(state.active);return}
   const add=e.target.closest("[data-add]"); if(add){openTask(null,add.dataset.add);return}
   const card=e.target.closest(".card"); if(card)openTask(card.dataset.id);
