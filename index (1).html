@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pitstop – car maintenance tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e6e8e6; --surface:#f6f7f5; --ink:#1c2a2e; --muted:#5d6b6e; --line:#c9cfcc;
+  --accent:#1f5f6b; --accent-ink:#fff; --warn:#c2410c; --ok:#2f6b3a;
+  --col-planned:#5d6b6e; --col-soon:#b7791f; --col-shop:#1f5f6b; --col-done:#2f6b3a;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141b1d; --surface:#1d2629; --ink:#e8ecea; --muted:#93a1a4; --line:#2f3b3f;
+    --accent:#5fb3c1; --accent-ink:#0f1a1d; --warn:#f59e6b; --ok:#7fc58b;
+    --col-planned:#93a1a4; --col-soon:#e0b04f; --col-shop:#5fb3c1; --col-done:#7fc58b;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141b1d; --surface:#1d2629; --ink:#e8ecea; --muted:#93a1a4; --line:#2f3b3f;
+  --accent:#5fb3c1; --accent-ink:#0f1a1d; --warn:#f59e6b; --ok:#7fc58b;
+  --col-planned:#93a1a4; --col-soon:#e0b04f; --col-shop:#5fb3c1; --col-done:#7fc58b; color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 Barlow,system-ui,sans-serif;min-height:100vh}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:18px 24px;border-bottom:1px solid var(--line)}
+h1{font:700 30px/1 "Barlow Condensed",sans-serif;margin:0;letter-spacing:.01em}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.tab{border:1px solid var(--line);background:var(--surface);padding:6px 14px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn{border:1px solid var(--line);background:var(--surface);padding:7px 14px;border-radius:6px;cursor:pointer;font-weight:500}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--warn)}
+.vehicle{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding:16px 24px 4px}
+.odo{font:700 34px/1 "Barlow Condensed",sans-serif;letter-spacing:.06em;background:var(--ink);color:var(--bg);padding:6px 12px;border-radius:4px;font-variant-numeric:tabular-nums}
+.vehicle .meta{color:var(--muted)}
+.board{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:16px;padding:16px 24px 32px;overflow-x:auto}
+.col{background:color-mix(in srgb,var(--surface) 70%,transparent);border:1px solid var(--line);border-top:4px solid var(--c);border-radius:6px;display:flex;flex-direction:column;min-height:260px}
+.col h2{font:700 20px/1 "Barlow Condensed",sans-serif;margin:0;padding:12px 14px 8px;display:flex;justify-content:space-between}
+.col h2 span{color:var(--muted);font:500 14px Barlow,sans-serif}
+.cards{flex:1;padding:6px 10px 10px;display:flex;flex-direction:column;gap:8px}
+.col.over{outline:2px dashed var(--c);outline-offset:-4px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:10px 12px;cursor:grab;text-align:left;width:100%}
+.card:active{cursor:grabbing}
+.card.dragging{opacity:.4}
+.card h3{margin:0 0 6px;font-size:15px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px;font-size:13px;color:var(--muted)}
+.chip.overdue{color:var(--warn);font-weight:600}
+.add{margin:0 10px 10px;border:1px dashed var(--line);background:none;border-radius:5px;padding:7px;color:var(--muted);cursor:pointer}
+.add:hover{color:var(--ink);border-color:var(--ink)}
+.empty{padding:60px 24px;text-align:center;color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:0;width:min(440px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+form{display:grid;gap:12px;padding:20px}
+form h2{margin:0;font:700 24px "Barlow Condensed",sans-serif}
+label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:8px 10px;color:var(--ink)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+.actions .spacer{flex:1}
+#taskDlg{max-height:92vh;overflow:auto}
+.receipts{display:grid;gap:8px;font-size:13px;color:var(--muted);justify-items:start}
+.thumbs{display:flex;flex-wrap:wrap;gap:10px}
+.thumb{position:relative;width:72px;height:72px}
+.thumb .view{width:100%;height:100%;padding:0;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--bg);cursor:zoom-in}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .rm{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;line-height:1;padding:0}
+.msg{color:var(--warn)}
+#lbDlg{width:min(900px,96vw)}
+#lbDlg img{display:block;max-width:100%;max-height:78vh;margin:0 auto;padding:10px}
+.lb-actions{padding:0 14px 12px;text-align:right}
+@media (max-width:720px){.board{grid-template-columns:repeat(4,80vw)}}
+@media (prefers-reduced-motion:no-preference){.card{transition:transform .12s}.card:hover{transform:translateY(-1px)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Pitstop</h1>
+  <div class="tabs" id="tabs" role="tablist" aria-label="Vehicles"></div>
+  <button class="btn" id="addVehicle">Add vehicle</button>
+</header>
+<main id="main"></main>
+
+<dialog id="taskDlg">
+  <form method="dialog" id="taskForm" onsubmit="return false">
+    <h2 id="taskTitle">New task</h2>
+    <label>Task<input id="fTitle" required placeholder="Oil and filter change"></label>
+    <div class="row">
+      <label>Status<select id="fStatus"></select></label>
+      <label>Due date<input id="fDue" type="date"></label>
+    </div>
+    <div class="row">
+      <label>Due at mileage<input id="fMiles" type="number" min="0" placeholder="e.g. 85000"></label>
+      <label>Cost ($)<input id="fCost" type="number" min="0" step="0.01"></label>
+    </div>
+    <label>Notes<textarea id="fNotes" rows="3" placeholder="Parts, shop, part numbers"></textarea></label>
+    <div class="receipts">
+      <span>Receipts</span>
+      <div class="thumbs" id="thumbs"></div>
+      <input id="fFile" type="file" accept="image/*" multiple hidden>
+      <button class="btn" id="fAddImg" type="button">Add receipt photos</button>
+      <span class="msg" id="imgMsg" role="status"></span>
+    </div>
+    <div class="actions">
+      <button class="btn danger" id="fDelete" type="button">Delete task</button>
+      <span class="spacer"></span>
+      <button class="btn" id="fCancel" type="button">Cancel</button>
+      <button class="btn primary" id="fSave" type="button">Save task</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="lbDlg">
+  <img id="lbImg" alt="Receipt photo, full size">
+  <div class="lb-actions"><button class="btn" id="lbClose" type="button">Close photo</button></div>
+</dialog>
+
+<dialog id="carDlg">
+  <form method="dialog" onsubmit="return false">
+    <h2 id="carTitle">New vehicle</h2>
+    <div class="row">
+      <label>Year<select id="cYear"></select></label>
+      <label>Make<select id="cMake"></select></label>
+    </div>
+    <input id="cMakeOther" placeholder="Type the make" aria-label="Make (other)" hidden>
+    <label>Model<select id="cModel"></select></label>
+    <input id="cModelOther" placeholder="Type the model" aria-label="Model (other)" hidden>
+    <label>Nickname<input id="cName" placeholder="Daily driver"></label>
+    <label>Current mileage<input id="cMiles" type="number" min="0"></label>
+    <div class="actions">
+      <button class="btn danger" id="cDelete" type="button">Delete vehicle</button>
+      <span class="spacer"></span>
+      <button class="btn" id="cCancel" type="button">Cancel</button>
+      <button class="btn primary" id="cSave" type="button">Save vehicle</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const COLUMNS=[
+  {id:"planned",name:"Planned",color:"var(--col-planned)"},
+  {id:"soon",name:"Due soon",color:"var(--col-soon)"},
+  {id:"shop",name:"In the shop",color:"var(--col-shop)"},
+  {id:"done",name:"Done",color:"var(--col-done)"}
+];
+const RAW={
+Acura:`ILX|Integra|MDX|NSX|RDX|RLX|TLX|TSX|ZDX`,
+Audi:`A3|A4|A5|A6|A7|A8|e-tron|e-tron GT|Q3|Q4 e-tron|Q5|Q7|Q8|R8|S4|TT`,
+BMW:`1 Series|2 Series|3 Series|4 Series|5 Series|7 Series|8 Series|i4|i5|i7|iX|M3|M4|M5|X1|X2|X3|X4|X5|X6|X7|Z4`,
+Buick:`Enclave|Encore|Encore GX|Envision|LaCrosse|Regal|Verano`,
+Cadillac:`ATS|CT4|CT5|CT6|CTS|Escalade|Lyriq|SRX|XT4|XT5|XT6`,
+Chevrolet:`Blazer|Bolt EV|Camaro|Colorado|Corvette|Cruze|Equinox|Impala|Malibu|Silverado 1500|Silverado 2500HD|Sonic|Spark|Suburban|Tahoe|Traverse|Trailblazer|Trax`,
+Chrysler:`200|300|Pacifica|Town & Country`,
+Dodge:`Challenger|Charger|Dart|Durango|Grand Caravan|Journey|Ram 1500`,
+Ford:`Bronco|Bronco Sport|EcoSport|Edge|Escape|Expedition|Explorer|F-150|F-250|F-350|Fiesta|Flex|Focus|Fusion|Maverick|Mustang|Mustang Mach-E|Ranger|Transit`,
+Genesis:`G70|G80|G90|GV60|GV70|GV80`,
+GMC:`Acadia|Canyon|Sierra 1500|Sierra 2500HD|Terrain|Yukon`,
+Honda:`Accord|Civic|Clarity|CR-V|Fit|HR-V|Insight|Odyssey|Passport|Pilot|Prologue|Ridgeline`,
+Hyundai:`Accent|Elantra|Ioniq|Ioniq 5|Ioniq 6|Kona|Palisade|Santa Cruz|Santa Fe|Sonata|Tucson|Veloster|Venue`,
+Infiniti:`Q50|Q60|QX50|QX55|QX60|QX80`,
+Jaguar:`E-Pace|F-Pace|F-Type|I-Pace|XE|XF|XJ`,
+Jeep:`Cherokee|Compass|Gladiator|Grand Cherokee|Grand Wagoneer|Patriot|Renegade|Wagoneer|Wrangler`,
+Kia:`Carnival|EV6|EV9|Forte|K5|Niro|Optima|Rio|Seltos|Sorento|Soul|Sportage|Stinger|Telluride`,
+"Land Rover":`Defender|Discovery|Discovery Sport|Range Rover|Range Rover Evoque|Range Rover Sport|Range Rover Velar`,
+Lexus:`ES|GS|GX|IS|LC|LS|LX|NX|RC|RX|TX|UX`,
+Lincoln:`Aviator|Corsair|MKC|MKX|MKZ|Nautilus|Navigator`,
+Mazda:`CX-3|CX-30|CX-5|CX-50|CX-9|CX-90|Mazda3|Mazda6|MX-5 Miata`,
+"Mercedes-Benz":`A-Class|C-Class|CLA|E-Class|EQB|EQE|EQS|G-Class|GLA|GLB|GLC|GLE|GLS|S-Class|Sprinter`,
+Mercury:`Grand Marquis|Mariner|Milan`,
+Mini:`Clubman|Convertible|Countryman|Hardtop`,
+Mitsubishi:`Eclipse Cross|Lancer|Mirage|Outlander|Outlander Sport`,
+Nissan:`370Z|Altima|Armada|Frontier|Kicks|Leaf|Maxima|Murano|Pathfinder|Rogue|Sentra|Titan|Versa|Z`,
+Pontiac:`G6|G8|Grand Prix|Vibe`,
+Porsche:`718 Boxster|718 Cayman|911|Cayenne|Macan|Panamera|Taycan`,
+Ram:`1500|2500|3500|ProMaster`,
+Rivian:`R1S|R1T`,
+Saturn:`Ion|Outlook|Vue`,
+Scion:`FR-S|tC|xB`,
+Subaru:`Ascent|BRZ|Crosstrek|Forester|Impreza|Legacy|Outback|Solterra|WRX`,
+Tesla:`Cybertruck|Model 3|Model S|Model X|Model Y`,
+Toyota:`4Runner|86|Avalon|bZ4X|C-HR|Camry|Corolla|Corolla Cross|GR86|GR Supra|Highlander|Land Cruiser|Prius|RAV4|Sequoia|Sienna|Tacoma|Tundra|Venza|Yaris`,
+Volkswagen:`Arteon|Atlas|Beetle|Golf|Golf GTI|ID.4|Jetta|Passat|Taos|Tiguan`,
+Volvo:`S60|S90|V60|XC40|XC60|XC90`
+};
+const MODELS=Object.fromEntries(Object.entries(RAW).map(([k,v])=>[k,v.split("|")]));
+const MAKES=Object.keys(MODELS).sort();
+const YEARS=Array.from({length:2027-1989},(_,i)=>2027-i);
+const ymm=v=>[v.year,v.make,v.model].filter(Boolean).join(" ");
+const vname=v=>v.name||ymm(v)||"Vehicle";
+const KEY="pitboard:v1";
+const uid=()=>Math.random().toString(36).slice(2,9);
+const seed=()=>({active:null,vehicles:[{id:"v1",name:"Daily driver",year:"2016",make:"Subaru",model:"Outback",miles:84210,tasks:[
+  {id:uid(),title:"Oil and filter change",status:"soon",due:"",miles:85000,cost:75,notes:"0W-20 synthetic"},
+  {id:uid(),title:"Rotate tires",status:"planned",due:"",miles:87000,cost:0,notes:""},
+  {id:uid(),title:"Replace brake pads (front)",status:"shop",due:"",miles:84000,cost:280,notes:"Drop off Thursday"},
+  {id:uid(),title:"Cabin air filter",status:"done",due:"",miles:80000,cost:22,notes:""}
+]}]});
+let state;
+try{state=JSON.parse(localStorage.getItem(KEY))}catch(e){state=null}
+if(!state||!state.vehicles)state=seed();
+if(!state.active)state.active=state.vehicles[0]?.id||null;
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}};
+const $=id=>document.getElementById(id);
+const car=()=>state.vehicles.find(v=>v.id===state.active);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=n=>Number(n).toLocaleString("en-US");
+
+function render(){
+  $("tabs").innerHTML=state.vehicles.map(v=>`<button class="tab" role="tab" aria-selected="${v.id===state.active}" data-id="${v.id}">${esc(vname(v))}</button>`).join("");
+  const v=car(), main=$("main");
+  if(!v){main.innerHTML='<div class="empty">No vehicles yet. Add one to start tracking maintenance.</div>';return}
+  const today=new Date().toISOString().slice(0,10);
+  main.innerHTML=`<div class="vehicle"><div class="odo" title="Current mileage">${String(v.miles).padStart(6,"0")}</div>
+    <span class="meta">miles on ${esc(vname(v))}${v.name&&ymm(v)?" · "+esc(ymm(v)):""}</span><button class="btn" id="editCar">Edit vehicle</button></div>
+    <div class="board">${COLUMNS.map(c=>{
+      const tasks=v.tasks.filter(t=>t.status===c.id);
+      return `<section class="col" style="--c:${c.color}" data-col="${c.id}">
+        <h2>${c.name}<span>${tasks.length}</span></h2>
+        <div class="cards">${tasks.map(t=>{
+          const od=(t.due&&t.due<today&&c.id!=="done")||(t.miles&&v.miles>=t.miles&&c.id!=="done");
+          return `<button class="card" draggable="true" data-id="${t.id}"><h3>${esc(t.title)}</h3><div class="chips">
+            ${t.miles?`<span class="chip ${od?"overdue":""}">${fmt(t.miles)} mi</span>`:""}
+            ${t.due?`<span class="chip ${t.due<today&&c.id!=="done"?"overdue":""}">Due ${t.due}</span>`:""}
+            ${t.cost?`<span class="chip">$${fmt(t.cost)}</span>`:""}
+            ${t.imgs&&t.imgs.length?`<span class="chip">${t.imgs.length} receipt${t.imgs.length>1?"s":""}</span>`:""}</div></button>`}).join("")}</div>
+        <button class="add" data-add="${c.id}">Add task</button></section>`}).join("")}</div>`;
+}
+
+// Receipt photos live in IndexedDB (too big for localStorage); tasks store only the photo ids.
+const idbReady=new Promise((res,rej)=>{try{const r=indexedDB.open("pitboard-receipts",1);r.onupgradeneeded=()=>r.result.createObjectStore("img");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}});
+const idb=(mode,fn)=>idbReady.then(d=>new Promise((res,rej)=>{const tx=d.transaction("img",mode);const req=fn(tx.objectStore("img"));tx.oncomplete=()=>res(req&&req.result);tx.onerror=()=>rej(tx.error)}));
+const putImg=(id,blob)=>idb("readwrite",s=>s.put(blob,id));
+const getImg=id=>idb("readonly",s=>s.get(id));
+const delImg=id=>idb("readwrite",s=>s.delete(id)).catch(()=>{});
+async function shrink(file){
+  const bmp=await createImageBitmap(file);
+  const s=Math.min(1,1600/Math.max(bmp.width,bmp.height));
+  const c=document.createElement("canvas");c.width=Math.round(bmp.width*s);c.height=Math.round(bmp.height*s);
+  c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+  return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error("encode")),"image/jpeg",0.82));
+}
+let draft=null;
+async function renderThumbs(){
+  const d=draft; if(!d)return;
+  Object.values(d.urls).forEach(u=>URL.revokeObjectURL(u)); d.urls={};
+  const box=$("thumbs"); const frag=document.createDocumentFragment();
+  for(const id of d.imgs){
+    let blob; try{blob=await getImg(id)}catch(e){}
+    if(!blob||draft!==d)continue;
+    const url=d.urls[id]=URL.createObjectURL(blob);
+    const w=document.createElement("div");w.className="thumb";
+    w.innerHTML='<button type="button" class="view" aria-label="View receipt"><img alt="Receipt photo" src="'+url+'"></button><button type="button" class="rm" aria-label="Remove receipt">×</button>';
+    w.querySelector(".view").onclick=()=>{$("lbImg").src=url;$("lbDlg").showModal()};
+    w.querySelector(".rm").onclick=()=>removeImg(id);
+    frag.appendChild(w);
+  }
+  if(draft===d)box.replaceChildren(frag);
+}
+function removeImg(id){
+  draft.imgs=draft.imgs.filter(x=>x!==id);
+  if(draft.added.has(id)){draft.added.delete(id);delImg(id)}else draft.removed.add(id);
+  renderThumbs();
+}
+$("fAddImg").onclick=()=>$("fFile").click();
+$("fFile").onchange=async e=>{
+  const files=[...e.target.files]; e.target.value=""; const msg=$("imgMsg"); msg.textContent="";
+  const d=draft;
+  for(const f of files){
+    if(!f.type.startsWith("image/")){msg.textContent="Only image files can be added.";continue}
+    try{const blob=await shrink(f);const id="r"+uid()+uid();await putImg(id,blob);if(draft!==d){delImg(id);return}d.imgs.push(id);d.added.add(id)}
+    catch(err){msg.textContent="Couldn’t save that photo. Try a smaller image or another browser."}
+  }
+  renderThumbs();
+};
+$("lbClose").onclick=()=>$("lbDlg").close();
+$("taskDlg").addEventListener("close",()=>{
+  if(!draft)return;
+  if(!draft.saved)draft.added.forEach(delImg);
+  Object.values(draft.urls).forEach(u=>URL.revokeObjectURL(u));
+  draft=null; $("thumbs").replaceChildren(); $("imgMsg").textContent="";
+});
+
+let editing=null;
+function openTask(id,status){
+  const v=car(); const t=id?v.tasks.find(x=>x.id===id):null; editing=t?t.id:null;
+  $("taskTitle").textContent=t?"Edit task":"New task";
+  $("fStatus").innerHTML=COLUMNS.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+  $("fTitle").value=t?.title||""; $("fStatus").value=t?.status||status||"planned";
+  $("fDue").value=t?.due||""; $("fMiles").value=t?.miles||""; $("fCost").value=t?.cost||""; $("fNotes").value=t?.notes||"";
+  draft={imgs:[...(t?.imgs||[])],added:new Set(),removed:new Set(),urls:{},saved:false};
+  $("fDelete").style.display=t?"":"none"; $("taskDlg").showModal(); $("fTitle").focus();
+  renderThumbs();
+}
+$("fSave").onclick=()=>{
+  const title=$("fTitle").value.trim(); if(!title){$("fTitle").focus();return}
+  const v=car(), data={title,status:$("fStatus").value,due:$("fDue").value,miles:+$("fMiles").value||0,cost:+$("fCost").value||0,notes:$("fNotes").value,imgs:draft.imgs};
+  if(editing)Object.assign(v.tasks.find(x=>x.id===editing),data); else v.tasks.push({id:uid(),...data});
+  draft.removed.forEach(delImg); draft.saved=true;
+  save();$("taskDlg").close();render();
+};
+$("fDelete").onclick=()=>{
+  const v=car(); const t=v.tasks.find(x=>x.id===editing);
+  [...(t?.imgs||[]),...draft.added].forEach(delImg); draft.saved=true;
+  v.tasks=v.tasks.filter(x=>x.id!==editing);save();$("taskDlg").close();render();
+};
+$("fCancel").onclick=()=>$("taskDlg").close();
+
+const opt=(v,t)=>`<option value="${esc(v)}">${esc(t===undefined?v:t)}</option>`;
+$("cMake").innerHTML=opt("","Make")+MAKES.map(m=>opt(m)).join("")+opt("__other","Other…");
+function fillModels(make){
+  const list=MODELS[make]||[];
+  $("cModel").innerHTML=opt("","Model")+list.map(m=>opt(m)).join("")+opt("__other","Other…");
+  $("cModel").value=make==="__other"?"__other":"";
+}
+function syncOther(){
+  $("cMakeOther").hidden=$("cMake").value!=="__other";
+  $("cModelOther").hidden=$("cModel").value!=="__other";
+}
+$("cMake").onchange=()=>{fillModels($("cMake").value);syncOther()};
+$("cModel").onchange=syncOther;
+let editingCar=null;
+function openCar(id){
+  const v=id?state.vehicles.find(x=>x.id===id):null; editingCar=v?v.id:null;
+  $("carTitle").textContent=v?"Edit vehicle":"New vehicle";
+  const yr=v?.year||"";
+  $("cYear").innerHTML=opt("","Year")+(yr&&!YEARS.includes(+yr)?opt(yr):"")+YEARS.map(y=>opt(y)).join("");
+  $("cYear").value=yr;
+  const mk=v?.make||"", mkKnown=!mk||!!MODELS[mk];
+  $("cMake").value=mkKnown?mk:"__other"; $("cMakeOther").value=mkKnown?"":mk;
+  fillModels($("cMake").value);
+  const md=v?.model||"", mdKnown=!md||(MODELS[mk]||[]).includes(md);
+  $("cModel").value=($("cMake").value==="__other"||!mdKnown)?"__other":md; $("cModelOther").value=mdKnown?"":md;
+  syncOther();
+  $("cName").value=v?.name||""; $("cMiles").value=v?.miles??""; $("cDelete").style.display=v?"":"none";
+  $("carDlg").showModal(); $("cYear").focus();
+}
+$("cSave").onclick=()=>{
+  const name=$("cName").value.trim(), year=$("cYear").value;
+  const make=$("cMake").value==="__other"?$("cMakeOther").value.trim():$("cMake").value;
+  const model=$("cModel").value==="__other"?$("cModelOther").value.trim():$("cModel").value;
+  if(!name&&!make){$("cMake").focus();return}
+  const miles=+$("cMiles").value||0;
+  if(editingCar){Object.assign(state.vehicles.find(x=>x.id===editingCar),{name,year,make,model,miles})}
+  else{const v={id:uid(),name,year,make,model,miles,tasks:[]};state.vehicles.push(v);state.active=v.id}
+  save();$("carDlg").close();render();
+};
+$("cDelete").onclick=()=>{
+  (state.vehicles.find(x=>x.id===editingCar)?.tasks||[]).forEach(t=>(t.imgs||[]).forEach(delImg));
+  state.vehicles=state.vehicles.filter(x=>x.id!==editingCar);
+  state.active=state.vehicles[0]?.id||null;save();$("carDlg").close();render();
+};
+$("cCancel").onclick=()=>$("carDlg").close();
+$("addVehicle").onclick=()=>openCar();
+
+document.addEventListener("click",e=>{
+  const tab=e.target.closest(".tab"); if(tab){state.active=tab.dataset.id;save();render();return}
+  if(e.target.id==="editCar"){openCar(state.active);return}
+  const add=e.target.closest("[data-add]"); if(add){openTask(null,add.dataset.add);return}
+  const card=e.target.closest(".card"); if(card)openTask(card.dataset.id);
+});
+
+let dragId=null;
+document.addEventListener("dragstart",e=>{const c=e.target.closest(".card");if(!c)return;dragId=c.dataset.id;c.classList.add("dragging");e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",dragId)});
+document.addEventListener("dragend",()=>{dragId=null;document.querySelectorAll(".over,.dragging").forEach(el=>el.classList.remove("over","dragging"))});
+document.addEventListener("dragover",e=>{const col=e.target.closest(".col");if(!col||!dragId)return;e.preventDefault();document.querySelectorAll(".over").forEach(el=>el.classList.remove("over"));col.classList.add("over")});
+document.addEventListener("drop",e=>{
+  const col=e.target.closest(".col"); if(!col||!dragId)return; e.preventDefault();
+  const t=car().tasks.find(x=>x.id===dragId); if(t){t.status=col.dataset.col;save();render()}
+});
+render();
+</script>
+</body>
+</html>
